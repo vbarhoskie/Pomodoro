@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pomodoro Timer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: #111;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    #pom-root {
+      background: #1A1A1A;
+      width: 100%;
+      max-width: 480px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 3.5rem 1.5rem 2.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    @media (min-height: 600px) {
+      #pom-root { min-height: unset; border-radius: 20px; }
+      body { padding: 2rem; }
+    }
+
+    #pom-root::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(217,119,87,0.10) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    #pom-top-bar {
+      position: absolute;
+      top: 1.25rem; left: 1.5rem; right: 1.5rem;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+
+    #pom-counter {
+      font-size: 11px; letter-spacing: 0.06em;
+      color: #5A5A5A; font-weight: 400; text-transform: uppercase;
+    }
+    #pom-counter span { color: #8A8A8A; font-weight: 500; }
+
+    #pom-mute-btn {
+      background: none; border: 0.5px solid #2E2E2E; border-radius: 50%;
+      width: 30px; height: 30px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: #5A5A5A;
+      transition: border-color 0.2s, color 0.2s, transform 0.15s;
+      padding: 0; flex-shrink: 0;
+    }
+    #pom-mute-btn:hover { border-color: #444; color: #9A9A9A; transform: scale(1.08); }
+    #pom-mute-btn:active { transform: scale(0.95); }
+    #pom-mute-btn:focus-visible { outline: 2px solid #D97757; outline-offset: 3px; }
+
+    #pom-phase {
+      font-size: 10.5px; letter-spacing: 0.18em;
+      text-transform: uppercase; color: #6A6A6A;
+      font-weight: 500; margin-bottom: 2rem;
+      transition: color 0.4s ease;
+    }
+    #pom-phase.break    { color: #7AADA0; }
+    #pom-phase.longbreak { color: #7A9EC5; }
+
+    #pom-ring-wrap {
+      position: relative;
+      width: 320px; height: 320px;
+      margin-bottom: 2.5rem;
+    }
+    #pom-ring-wrap svg {
+      position: absolute; top: 0; left: 0;
+      transform: rotate(-90deg);
+    }
+
+    .ring-track  { stroke: #2A2A2A; stroke-width: 3; fill: none; }
+    .ring-glow   {
+      stroke: #D97757; stroke-width: 3; fill: none;
+      stroke-linecap: round; opacity: 0.15; filter: blur(4px);
+      transition: stroke 0.4s ease;
+    }
+    .ring-progress {
+      stroke: #D97757; stroke-width: 3; fill: none;
+      stroke-linecap: round;
+      stroke-dasharray: 942.48; stroke-dashoffset: 0;
+      transition: stroke-dashoffset 0.4s linear, stroke 0.4s ease;
+    }
+    .ring-progress.break    { stroke: #5FBFB0; }
+    .ring-progress.longbreak { stroke: #5B8FC5; }
+    .ring-glow.break         { stroke: #5FBFB0; }
+    .ring-glow.longbreak     { stroke: #5B8FC5; }
+
+    #pom-inner-circle {
+      position: absolute; inset: 18px; border-radius: 50%;
+      background: #1E1E1E; border: 0.5px solid #2C2C2C;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 2px;
+    }
+
+    #pom-time {
+      font-family: 'DM Mono', monospace;
+      font-size: 62px; font-weight: 400; color: #F0EDE8;
+      letter-spacing: -0.02em; line-height: 1;
+      transition: color 0.4s ease;
+    }
+    #pom-time.break    { color: #A8D8D2; }
+    #pom-time.longbreak { color: #A8C4E0; }
+
+    #pom-cycle-label {
+      font-size: 11px; color: #3D3D3D;
+      letter-spacing: 0.05em; margin-top: 6px; font-weight: 400;
+    }
+
+    #pom-dots { display: flex; gap: 6px; margin-top: 10px; }
+    .pom-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: #2E2E2E; transition: background 0.4s ease;
+    }
+    .pom-dot.done   { background: #D97757; }
+    .pom-dot.active { background: #D97757; opacity: 0.4; }
+
+    #pom-motivation {
+      height: 18px; margin-bottom: 1.25rem;
+      font-size: 12px; color: #5A5A5A;
+      letter-spacing: 0.04em; font-style: italic;
+      opacity: 0; transition: opacity 0.6s ease; text-align: center;
+    }
+    #pom-motivation.visible { opacity: 1; }
+
+    #pom-controls { display: flex; gap: 12px; align-items: center; }
+
+    #pom-btn-primary {
+      padding: 0 36px; height: 48px; border-radius: 999px;
+      border: none; background: #D97757; color: #1A1A1A;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px; font-weight: 500; letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+      min-width: 120px;
+    }
+    #pom-btn-primary:hover {
+      background: #E08868;
+      box-shadow: 0 4px 24px rgba(217,119,87,0.3);
+      transform: translateY(-1px);
+    }
+    #pom-btn-primary:active  { transform: scale(0.97); }
+    #pom-btn-primary:focus-visible { outline: 2px solid #D97757; outline-offset: 3px; }
+
+    #pom-btn-reset {
+      padding: 0 28px; height: 48px; border-radius: 999px;
+      border: 0.5px solid #333; background: transparent; color: #5A5A5A;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px; font-weight: 400; letter-spacing: 0.03em;
+      cursor: pointer;
+      transition: border-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
+    }
+    #pom-btn-reset:hover  { border-color: #555; color: #9A9A9A; transform: translateY(-1px); }
+    #pom-btn-reset:active { transform: scale(0.97); }
+    #pom-btn-reset:focus-visible { outline: 2px solid #555; outline-offset: 3px; }
+
+    #pom-stats {
+      display: flex; gap: 2rem; margin-top: 2rem;
+      padding-top: 1.25rem; border-top: 0.5px solid #232323;
+      width: 100%; max-width: 320px; justify-content: center;
+    }
+    .pom-stat { text-align: center; }
+    .pom-stat-value {
+      font-family: 'DM Mono', monospace;
+      font-size: 22px; font-weight: 400; color: #6A6A6A;
+      letter-spacing: -0.01em; line-height: 1;
+    }
+    .pom-stat-label {
+      font-size: 10px; color: #3A3A3A;
+      letter-spacing: 0.08em; text-transform: uppercase; margin-top: 4px;
+    }
+
+    #pom-footer {
+      margin-top: 1.75rem;
+      font-size: 10px; color: #2E2E2E;
+      letter-spacing: 0.06em; text-transform: uppercase;
+    }
+
+    @media (max-width: 420px) {
+      #pom-ring-wrap  { width: 260px; height: 260px; }
+      #pom-time       { font-size: 50px; }
+      #pom-inner-circle { inset: 14px; }
+      #pom-btn-primary  { padding: 0 28px; min-width: 100px; }
+      #pom-stats        { gap: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+<div id="pom-root">
+
+  <div id="pom-top-bar">
+    <div id="pom-counter">Today &nbsp;<span id="pom-count">0</span> done</div>
+    <button id="pom-mute-btn" title="Toggle sound" aria-label="Toggle sound">
+      <svg id="icon-sound" width="15" height="15" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+      </svg>
+      <svg id="icon-mute" width="15" height="15" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+           style="display:none">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+        <line x1="23" y1="9" x2="17" y2="15"/>
+        <line x1="17" y1="9" x2="23" y2="15"/>
+      </svg>
+    </button>
+  </div>
+
+  <div id="pom-phase">Focus</div>
+
+  <div id="pom-ring-wrap">
+    <svg viewBox="0 0 320 320" width="320" height="320">
+      <circle class="ring-track" cx="160" cy="160" r="150"/>
+      <circle class="ring-glow" id="ring-glow" cx="160" cy="160" r="150"
+              stroke-dasharray="942.48" stroke-dashoffset="0"/>
+      <circle class="ring-progress" id="ring-progress" cx="160" cy="160" r="150"
+              stroke-dasharray="942.48" stroke-dashoffset="0"/>
+    </svg>
+    <div id="pom-inner-circle">
+      <div id="pom-time">25:00</div>
+      <div id="pom-dots">
+        <div class="pom-dot active" id="dot-0"></div>
+        <div class="pom-dot" id="dot-1"></div>
+        <div class="pom-dot" id="dot-2"></div>
+        <div class="pom-dot" id="dot-3"></div>
+      </div>
+      <div id="pom-cycle-label">session 1 of 4</div>
+    </div>
+  </div>
+
+  <div id="pom-motivation" aria-live="polite"></div>
+
+  <div id="pom-controls">
+    <button id="pom-btn-primary">Start</button>
+    <button id="pom-btn-reset">Reset</button>
+  </div>
+
+  <div id="pom-stats">
+    <div class="pom-stat">
+      <div class="pom-stat-value" id="stat-minutes">0</div>
+      <div class="pom-stat-label">Focus minutes</div>
+    </div>
+    <div class="pom-stat">
+      <div class="pom-stat-value" id="stat-sessions">0</div>
+      <div class="pom-stat-label">Sessions done</div>
+    </div>
+  </div>
+
+  <div id="pom-footer">Built with Claude</div>
+
+</div>
+
+<script>
+(function () {
+  // ── Stats ──────────────────────────────────────────────────────────────────
+  function todayKey() { return new Date().toISOString().slice(0, 10); }
+
+  function loadStats() {
+    try {
+      var raw = localStorage.getItem('pom-stats');
+      if (!raw) return { date: todayKey(), minutes: 0, sessions: 0 };
+      var d = JSON.parse(raw);
+      if (d.date !== todayKey()) return { date: todayKey(), minutes: 0, sessions: 0 };
+      return d;
+    } catch (e) { return { date: todayKey(), minutes: 0, sessions: 0 }; }
+  }
+
+  function saveStats() {
+    try { localStorage.setItem('pom-stats', JSON.stringify(stats)); } catch (e) {}
+  }
+
+  var stats = loadStats();
+
+  function updateStatsUI() {
+    document.getElementById('stat-minutes').textContent  = stats.minutes;
+    document.getElementById('stat-sessions').textContent = stats.sessions;
+  }
+
+  // ── Motivational messages ──────────────────────────────────────────────────
+  var MESSAGES = [
+    "Nice work. Take a breath.",
+    "Phase complete. Stretch a moment.",
+    "Well done. Step away briefly.",
+    "Focus held. Rest your eyes.",
+    "Good session. You earned this break.",
+  ];
+  var lastMsgIdx = -1;
+  var motivationTimer = null;
+
+  function showMotivation() {
+    var el = document.getElementById('pom-motivation');
+    var idx;
+    do { idx = Math.floor(Math.random() * MESSAGES.length); }
+    while (idx === lastMsgIdx && MESSAGES.length > 1);
+    lastMsgIdx = idx;
+    el.textContent = MESSAGES[idx];
+    el.classList.add('visible');
+    if (motivationTimer) clearTimeout(motivationTimer);
+    motivationTimer = setTimeout(function () { el.classList.remove('visible'); }, 4000);
+  }
+
+  // ── Audio ──────────────────────────────────────────────────────────────────
+  var audioCtx = null;
+  var muted = false;
+  try { muted = localStorage.getItem('pom-muted') === 'true'; } catch (e) {}
+
+  function getCtx() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function playTone(freq, startTime, duration, peakGain, ctx) {
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, startTime);
+    var attack = 0.015, release = duration * 0.55;
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(peakGain, startTime + attack);
+    gain.gain.linearRampToValueAtTime(peakGain * 0.7, startTime + attack + duration * 0.15);
+    gain.gain.setValueAtTime(peakGain * 0.7, startTime + duration - release);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+    osc.start(startTime);
+    osc.stop(startTime + duration);
+  }
+
+  function playBreakChime() {
+    if (muted) return;
+    try {
+      var ctx = getCtx(), now = ctx.currentTime;
+      playTone(660, now, 0.55, 0.22, ctx);
+      playTone(880, now + 0.32, 0.70, 0.18, ctx);
+    } catch (e) {}
+  }
+
+  function playFocusChime() {
+    if (muted) return;
+    try {
+      var ctx = getCtx(), now = ctx.currentTime;
+      playTone(523, now, 0.40, 0.20, ctx);
+      playTone(659, now + 0.25, 0.40, 0.20, ctx);
+      playTone(784, now + 0.50, 0.60, 0.22, ctx);
+    } catch (e) {}
+  }
+
+  function playClick() {
+    if (muted) return;
+    try {
+      var ctx = getCtx(), now = ctx.currentTime;
+      var osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1200, now);
+      osc.frequency.exponentialRampToValueAtTime(800, now + 0.04);
+      gain.gain.setValueAtTime(0.07, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+      osc.start(now);
+      osc.stop(now + 0.07);
+    } catch (e) {}
+  }
+
+  // ── Mute toggle ────────────────────────────────────────────────────────────
+  var muteBtn   = document.getElementById('pom-mute-btn');
+  var iconSound = document.getElementById('icon-sound');
+  var iconMute  = document.getElementById('icon-mute');
+
+  function applyMuteUI() {
+    iconSound.style.display   = muted ? 'none'  : 'block';
+    iconMute.style.display    = muted ? 'block' : 'none';
+    muteBtn.style.color       = muted ? '#3A3A3A' : '#5A5A5A';
+    muteBtn.style.borderColor = muted ? '#282828' : '#2E2E2E';
+  }
+  applyMuteUI();
+
+  muteBtn.addEventListener('click', function () {
+    muted = !muted;
+    try { localStorage.setItem('pom-muted', String(muted)); } catch (e) {}
+    applyMuteUI();
+  });
+
+  // ── Timer ──────────────────────────────────────────────────────────────────
+  var PHASES = [
+    { name: 'Focus',       duration: 25 * 60, label: 'Focus',       cls: ''          },
+    { name: 'Short Break', duration:  5 * 60, label: 'Short Break', cls: 'break'     },
+    { name: 'Long Break',  duration: 15 * 60, label: 'Long Break',  cls: 'longbreak' },
+  ];
+  var CIRC = 2 * Math.PI * 150; // 942.48
+
+  var phaseIndex = 0, focusCount = 0, pomsDone = 0;
+  var totalSecs = PHASES[0].duration, remaining = PHASES[0].duration;
+  var running = false, intervalId = null, lastTick = null;
+
+  var elTime     = document.getElementById('pom-time');
+  var elPhase    = document.getElementById('pom-phase');
+  var elCount    = document.getElementById('pom-count');
+  var elCycle    = document.getElementById('pom-cycle-label');
+  var ringP      = document.getElementById('ring-progress');
+  var ringG      = document.getElementById('ring-glow');
+  var btnPrimary = document.getElementById('pom-btn-primary');
+  var btnReset   = document.getElementById('pom-btn-reset');
+  var dots       = [0, 1, 2, 3].map(function (i) { return document.getElementById('dot-' + i); });
+
+  function fmt(s) {
+    return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  }
+
+  function getPhase() { return PHASES[phaseIndex]; }
+
+  function applyPhaseStyle(cls) {
+    [elTime, elPhase, ringP, ringG].forEach(function (el) {
+      el.classList.remove('break', 'longbreak');
+      if (cls) el.classList.add(cls);
+    });
+  }
+
+  function updateDots() {
+    dots.forEach(function (d, i) {
+      d.classList.remove('done', 'active');
+      if (i < focusCount % 4) d.classList.add('done');
+      else if (i === focusCount % 4 && getPhase().name === 'Focus') d.classList.add('active');
+    });
+  }
+
+  function updateUI() {
+    var ph = getPhase();
+    elTime.textContent  = fmt(remaining);
+    elPhase.textContent = ph.label;
+    elCount.textContent = pomsDone;
+    ringP.style.strokeDashoffset = CIRC * (1 - remaining / totalSecs);
+    ringG.style.strokeDashoffset = CIRC * (1 - remaining / totalSecs);
+    applyPhaseStyle(ph.cls);
+    elCycle.textContent = ph.name === 'Focus'
+      ? 'session ' + (focusCount % 4 + 1) + ' of 4'
+      : ph.label.toLowerCase();
+    updateDots();
+    updateStatsUI();
+  }
+
+  function nextPhase() {
+    var wasBreak = getPhase().name !== 'Focus';
+    if (!wasBreak) {
+      pomsDone++;
+      focusCount++;
+      phaseIndex = (focusCount % 4 === 0) ? 2 : 1;
+      stats = loadStats();
+      stats.minutes  += 25;
+      stats.sessions += 1;
+      saveStats();
+      playBreakChime();
+      showMotivation();
+    } else {
+      phaseIndex = 0;
+      playFocusChime();
+    }
+    totalSecs = getPhase().duration;
+    remaining = totalSecs;
+    updateUI();
+    startTimer();
+  }
+
+  function tick() {
+    var now = Date.now();
+    var elapsed = Math.round((now - lastTick) / 1000);
+    if (elapsed >= 1) {
+      remaining = Math.max(0, remaining - elapsed);
+      lastTick = now;
+      updateUI();
+      if (remaining === 0) {
+        clearInterval(intervalId);
+        intervalId = null;
+        running = false;
+        btnPrimary.textContent = 'Start';
+        setTimeout(nextPhase, 800);
+      }
+    }
+  }
+
+  function startTimer() {
+    if (running) return;
+    running = true;
+    lastTick = Date.now();
+    btnPrimary.textContent = 'Pause';
+    intervalId = setInterval(tick, 250);
+  }
+
+  function pauseTimer() {
+    if (!running) return;
+    clearInterval(intervalId);
+    intervalId = null;
+    running = false;
+    btnPrimary.textContent = 'Start';
+  }
+
+  function resetTimer() {
+    clearInterval(intervalId);
+    intervalId = null;
+    running = false;
+    phaseIndex = 0; focusCount = 0; pomsDone = 0;
+    totalSecs = PHASES[0].duration;
+    remaining  = PHASES[0].duration;
+    btnPrimary.textContent = 'Start';
+    updateUI();
+  }
+
+  btnPrimary.addEventListener('click', function () {
+    if (running) { pauseTimer(); } else { playClick(); startTimer(); }
+  });
+
+  btnReset.addEventListener('click', function () { resetTimer(); });
+
+  updateUI();
+})();
+</script>
+</body>
+</html>
